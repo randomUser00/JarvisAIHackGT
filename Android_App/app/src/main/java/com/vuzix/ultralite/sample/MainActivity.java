@@ -73,7 +73,7 @@ public class MainActivity extends AppCompatActivity {
 
     String authCode = "default_code";
     String host_url = "https://ccghwd.pythonanywhere.com";
-    String trigger = "Hi";
+    String trigger = "Jarvis";
     private RecognitionListener triggerWordListener;
     private RecognitionListener captureListener;
 
@@ -300,7 +300,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private String getResponse(String authCode, String voiceInput) {
-        googleSignIn();
+        if (authCode == null || authCode.equals("default_code")) {
+            runOnUiThread(() -> googleSignIn());
+            return "Please sign in to continue.";
+        }
         ExecutorService executor = Executors.newSingleThreadExecutor();
         Future<String> future = executor.submit(() -> {
             try {
@@ -315,7 +318,7 @@ public class MainActivity extends AppCompatActivity {
                 if (responseCode == HttpURLConnection.HTTP_OK) { // success
                     BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
                     String inputLine;
-                    StringBuffer response = new StringBuffer();
+                    StringBuilder response = new StringBuilder(); // Use StringBuilder instead of StringBuffer
                     while ((inputLine = in.readLine()) != null) {
                         response.append(inputLine);
                     }
