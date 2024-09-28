@@ -70,6 +70,7 @@ public class MainActivity extends AppCompatActivity {
 
     Boolean isListening = Boolean.FALSE;
     Boolean isPrompt = Boolean.FALSE;
+    Boolean isProcessing = Boolean.FALSE;
     FirebaseAuth auth;
     GoogleSignInClient mGoogleSignInClient;
 
@@ -77,7 +78,6 @@ public class MainActivity extends AppCompatActivity {
     String host_url = "https://ccghwd.pythonanywhere.com";
     String[] triggers = {"Jarvis", "Jar", "Harvest", "Service", "Nervous", "Starfish", "Carcass", "Marvelous", "Artist", "Viss", "Vis", "Largest", "Furnace", "Purpose"};
     private RecognitionListener triggerWordListener;
-    private SpeechRecognizer noiseMaker;
     private Handler handler = new Handler();
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -123,7 +123,6 @@ public class MainActivity extends AppCompatActivity {
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
         initializeRecognitionListeners();
         speechRecognizer.setRecognitionListener(triggerWordListener);
-        noiseMaker = SpeechRecognizer.createSpeechRecognizer(this);
         isListening = true;
         startListeningForTriggerWord();
 
@@ -192,15 +191,24 @@ public class MainActivity extends AppCompatActivity {
                 StringBuilder sb = new StringBuilder();
                 for (String str : matches) sb.append(str).append(" ");
                 runOnUiThread(() -> speechText.setText(sb));
-
-                if (isPrompt) {
+                if (isProcessing) {
+                    mute();
+                } else if (isPrompt) {
+                    String promptText = sb.toString();
+                    unmute();
                     runOnUiThread(() -> notificationEditText.setText("PROMPT: " + sb));
                     isPrompt = false;
-                    noiseMaker.stopListening();
+                    isProcessing = true;
+                    String response = getResponse(authCode, promptText);
+                    startListeningForTriggerWord();
+                    sendToGlasses(response);
                 } else if (containsTrigger.test(triggers, matches)) {
+                    unmute();
                     runOnUiThread(() -> notificationEditText.setText("Listening..."));
                     isPrompt = true;
-                    noiseMaker.startListening(new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH));
+                }
+                else {
+                    mute();
                 }
                 startListeningForTriggerWord();
             }
@@ -228,17 +236,17 @@ public class MainActivity extends AppCompatActivity {
     private void unmute() {
         AudioManager audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
         if (audioManager != null) {
-            audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, AudioManager.ADJUST_UNMUTE, 0);
-            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, AudioManager.ADJUST_UNMUTE, 0);
-            audioManager.setStreamVolume(AudioManager.STREAM_RING, AudioManager.ADJUST_UNMUTE, 0);
-            audioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_UNMUTE, 0);
+            audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, AudioManager.ADJUST_RAISE, 0);
+            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, AudioManager.ADJUST_RAISE, 0);
+            audioManager.setStreamVolume(AudioManager.STREAM_RING, AudioManager.ADJUST_RAISE, 0);
+            audioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_RAISE, 0);
         }
     }
     private void startListeningForTriggerWord() {
-        if (!isListening) {
+        isListening = true;
+        if (!isListening || isProcessing) {
             return;
         }
-        mute();
         speechRecognizer.setRecognitionListener(triggerWordListener);
         // Prepare the speech recognition intent
         Intent speechIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
@@ -248,8 +256,9 @@ public class MainActivity extends AppCompatActivity {
         speechRecognizer.startListening(speechIntent);
     }
 
-    private void stopSpeechRecognition() {
+    private void stopListeningForTriggerWord() {
         speechRecognizer.stopListening();
+        isListening = false;
     }
 
     private void googleSignIn() {
@@ -305,6 +314,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             } catch (Exception e) {
                 e.printStackTrace();
+                startListeningForTriggerWord();
             }
             return null;
         });
