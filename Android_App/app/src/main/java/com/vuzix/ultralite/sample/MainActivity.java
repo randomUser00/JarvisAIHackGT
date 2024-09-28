@@ -76,7 +76,7 @@ public class MainActivity extends AppCompatActivity {
 
     String authCode = "default_code";
     String host_url = "https://ccghwd.pythonanywhere.com";
-    String[] triggers = {"Jarvis", "Jar", "Harvest", "Service", "Nervous", "Starfish", "Carcass", "Marvelous", "Artist", "Viss", "Vis", "Largest", "Furnace", "Purpose"};
+    String[] triggers = {"Jarvis", "Artist", "Largest", "Tardis"};
     private RecognitionListener triggerWordListener;
     private Handler handler = new Handler();
     @Override
@@ -199,10 +199,15 @@ public class MainActivity extends AppCompatActivity {
                     runOnUiThread(() -> notificationEditText.setText("PROMPT: " + sb));
                     isPrompt = false;
                     isProcessing = true;
-                    String response = getResponse(authCode, promptText);
-                    startListeningForTriggerWord();
-                    sendToGlasses(response);
+                    // todo:
+                    handler.postDelayed(() -> {
+                        sendToGlasses("Hello");
+                        isProcessing = false;
+                        startListeningForTriggerWord();
+                    }, 4000);
+
                 } else if (containsTrigger.test(triggers, matches)) {
+                    // Trigger word detected
                     unmute();
                     runOnUiThread(() -> notificationEditText.setText("Listening..."));
                     isPrompt = true;
