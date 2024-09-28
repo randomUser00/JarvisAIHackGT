@@ -62,7 +62,6 @@ public class MainActivity extends AppCompatActivity {
     private static final int PERMISSION_REQUEST_INTERNET = 1;
     private EditText speechText;
     private EditText notificationEditText;
-    private SpeechRecognizer speechRecognizer;
     
 
     int RC_SIGN_IN = 20;
@@ -76,6 +75,8 @@ public class MainActivity extends AppCompatActivity {
     String trigger = "Jarvis";
     private RecognitionListener triggerWordListener;
     private RecognitionListener captureListener;
+    private SpeechRecognizer triggerSpeechRecognizer;
+    private SpeechRecognizer captureSpeechRecognizer;
     private Handler handler = new Handler();
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -118,9 +119,10 @@ public class MainActivity extends AppCompatActivity {
         });
 
         // Initialize SpeechRecognizer
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
+        triggerSpeechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
+        captureSpeechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
+        
         initializeRecognitionListeners();
-        speechRecognizer.setRecognitionListener(triggerWordListener);
         isListening = true;
         startListeningForTriggerWord();
 
@@ -175,12 +177,14 @@ public class MainActivity extends AppCompatActivity {
                     String recognizedText = matches.get(0);
                     runOnUiThread(() -> speechText.setText(recognizedText));
                     if (recognizedText.toLowerCase().contains(trigger.toLowerCase())) {
-                        // Start listening for 5 seconds to capture the user's request
+                        // Stop trigger recognizer
+                        triggerSpeechRecognizer.stopListening();
+                        // Start listening for user request
                         startListeningForCapture();
-                        return; // Do not schedule next listening session here
+                        return;
                     }
                 }
-            // Schedule the next listening session after 5 seconds
+    // Schedule the next listening session after 5 seconds
                 handler.postDelayed(() -> startListeningForTriggerWord(), 5000);
             }
             @Override
@@ -240,30 +244,26 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onEvent(int eventType, Bundle params) {}
         };
+        triggerSpeechRecognizer.setRecognitionListener(triggerWordListener);
+        captureSpeechRecognizer.setRecognitionListener(captureListener);
     }
     private void startListeningForTriggerWord() {
         if (!isListening) {
             return;
-        }
-        // Set the trigger word listener
-        speechRecognizer.setRecognitionListener(triggerWordListener);
+        }    
         // Prepare the speech recognition intent
         Intent speechIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         speechIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
         speechIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
         // Start listening
-        speechRecognizer.startListening(speechIntent);
+        triggerSpeechRecognizer.startListening(speechIntent);
         // Schedule stopListening after 5 seconds
         handler.postDelayed(() -> {
-            speechRecognizer.stopListening();
+            triggerSpeechRecognizer.stopListening();
         }, 5000);
     }
 
     private void startListeningForCapture() {
-        // Stop any ongoing listening
-        speechRecognizer.stopListening();
-        // Set the capture listener
-        speechRecognizer.setRecognitionListener(captureListener);
         // Prepare the speech recognition intent
         Intent captureIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         captureIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
@@ -273,14 +273,19 @@ public class MainActivity extends AppCompatActivity {
         // Add a short delay before starting to listen
         new Handler().postDelayed(() -> {
             // Start listening
-            speechRecognizer.startListening(captureIntent);
+            captureSpeechRecognizer.startListening(captureIntent);
             // Stop listening after 5 seconds
-            new Handler().postDelayed(() -> speechRecognizer.stopListening(), 5000);
+            new Handler().postDelayed(() -> captureSpeechRecognizer.stopListening(), 5000);
         }, 500); // 500 milliseconds delay
     }
 
     private void stopSpeechRecognition() {
-        speechRecognizer.stopListening();
+        if (triggerSpeechRecognizer != null) {
+            triggerSpeechRecognizer.stopListening();
+        }
+        if (captureSpeechRecognizer != null) {
+            captureSpeechRecognizer.stopListening();
+        }
     }
 
     private void googleSignIn() {
