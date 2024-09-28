@@ -107,7 +107,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
 
-        ImageView linkedImageView = findViewById(R.id.linked);
+//        ImageView linkedImageView = findViewById(R.id.linked);
 
         notificationEditText = findViewById(R.id.notification_text_2);
         speechText = findViewById(R.id.speech_text_2);
@@ -115,7 +115,7 @@ public class MainActivity extends AppCompatActivity {
         UltraliteSDK ultralite = UltraliteSDK.get(this);
 
         ultralite.getLinked().observe(this, linked -> {
-            linkedImageView.setImageResource(linked ? R.drawable.ic_check_24 : R.drawable.ic_close_24);
+//            linkedImageView.setImageResource(linked ? R.drawable.ic_check_24 : R.drawable.ic_close_24);
 //            nameTextView.setText(ultralite.getName());
         });
 
