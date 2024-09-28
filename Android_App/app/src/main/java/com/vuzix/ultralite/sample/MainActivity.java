@@ -69,6 +69,7 @@ public class MainActivity extends AppCompatActivity {
     int RC_SIGN_IN = 20;
 
     Boolean isListening = Boolean.FALSE;
+    Boolean isPrompt = Boolean.FALSE;
     FirebaseAuth auth;
     GoogleSignInClient mGoogleSignInClient;
 
@@ -76,7 +77,7 @@ public class MainActivity extends AppCompatActivity {
     String host_url = "https://ccghwd.pythonanywhere.com";
     String[] triggers = {"Jarvis", "Jar", "Harvest", "Service", "Nervous", "Starfish", "Carcass", "Marvelous", "Artist", "Viss", "Vis", "Largest", "Furnace", "Purpose"};
     private RecognitionListener triggerWordListener;
-    private RecognitionListener captureListener;
+    private SpeechRecognizer noiseMaker;
     private Handler handler = new Handler();
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -122,153 +123,122 @@ public class MainActivity extends AppCompatActivity {
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
         initializeRecognitionListeners();
         speechRecognizer.setRecognitionListener(triggerWordListener);
-//        isListening = true;
-//        startListeningForTriggerWord();
+        noiseMaker = SpeechRecognizer.createSpeechRecognizer(this);
+        isListening = true;
+        startListeningForTriggerWord();
 
-        Button speechInputButton = findViewById(R.id.speech_input_button_start);
-        speechInputButton.setOnClickListener(v -> {
-            isListening = true;
-            startListeningForTriggerWord();
-        });
+//        Button speechInputButton = findViewById(R.id.speech_input_button_start);
+//        speechInputButton.setOnClickListener(v -> {
+//            isListening = true;
+//            startListeningForTriggerWord();
+//        });
 
 
-        Button stopSpeechInputButton = findViewById(R.id.speech_input_button_end);
-        stopSpeechInputButton.setOnClickListener(v -> {
-            isListening = false;
-            stopSpeechRecognition();
-        });
+//        Button stopSpeechInputButton = findViewById(R.id.speech_input_button_end);
+//        stopSpeechInputButton.setOnClickListener(v -> {
+//            isListening = false;
+//            stopSpeechRecognition();
+//        });
 
     }
     private void initializeRecognitionListeners() {
         triggerWordListener = new RecognitionListener() {
             @Override
-            public void onReadyForSpeech(Bundle params) {}
+            public void onReadyForSpeech(Bundle params) {
+            }
 
             @Override
-            public void onBeginningOfSpeech() {}
+            public void onBeginningOfSpeech() {
+            }
 
             @Override
-            public void onRmsChanged(float rmsdB) {}
+            public void onRmsChanged(float rmsdB) {
+            }
 
             @Override
-            public void onBufferReceived(byte[] buffer) {}
+            public void onBufferReceived(byte[] buffer) {
+            }
 
             @Override
-            public void onEndOfSpeech() {}
+            public void onEndOfSpeech() {
+                if (isListening) {
+                    startListeningForTriggerWord();
+                }
+            }
 
             @Override
             public void onError(int error) {
                 if (isListening) {
-                    if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
-                        // Do nothing, we already stopped listening after 5 seconds
-                    } else {
-                        runOnUiThread(() -> Toast.makeText(MainActivity.this, "Speech recognition error: " + error, Toast.LENGTH_SHORT).show());
-                    }
-                    // Schedule the next listening session after 5 seconds
-                    handler.postDelayed(() -> startListeningForTriggerWord(), 2000);
+                    startListeningForTriggerWord();
                 }
             }
 
             @Override
             public void onResults(Bundle results) {
 
-                BiPredicate<String[], ArrayList<String>> containsTrigger = new BiPredicate<String[], ArrayList<String>>() {
-                    @Override
-                    public boolean test(String[] array, ArrayList<String> list) {
-                        if (list == null) return false;
-                        for (String trigger : array) {
-                            for (String spokenWord : list) {
-                                if (spokenWord.toLowerCase().contains(trigger.toLowerCase())) {
-                                    return true; // Return true if a match is found
-                                }
+                BiPredicate<String[], ArrayList<String>> containsTrigger = (array, list) -> {
+                    if (list == null) return false;
+                    for (String trigger : array) {
+                        for (String spokenWord : list) {
+                            if (spokenWord.toLowerCase().contains(trigger.toLowerCase())) {
+                                return true;
                             }
                         }
-                        return false; // Return false if no match is found
                     }
+                    return false;
                 };
 
                 ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
                 StringBuilder sb = new StringBuilder();
-                for(String str : matches) sb.append(str).append(" ");
-                runOnUiThread(() -> speechText.setText(sb.toString()));
+                for (String str : matches) sb.append(str).append(" ");
+                runOnUiThread(() -> speechText.setText(sb));
 
-                if (containsTrigger.test(triggers, matches)) {
-                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "Trigger detected", Toast.LENGTH_SHORT).show());
-//                    startListeningForCapture();
+                if (isPrompt) {
+                    runOnUiThread(() -> notificationEditText.setText("PROMPT: " + sb));
+                    isPrompt = false;
+                    noiseMaker.stopListening();
+                } else if (containsTrigger.test(triggers, matches)) {
+                    runOnUiThread(() -> notificationEditText.setText("Listening..."));
+                    isPrompt = true;
+                    noiseMaker.startListening(new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH));
                 }
-
-//                if (matches != null && !matches.isEmpty()) {
-//                    String recognizedText = matches.get(0);
-//                    runOnUiThread(() -> speechText.setText(recognizedText));
-//                    if (recognizedText.toLowerCase().contains(trigger.toLowerCase())) {
-//                        // Start listening for 5 seconds to capture the user's request
-//                        startListeningForCapture();
-//                        return; // Do not schedule next listening session here
-//                    }
-//                }
-
-            // Schedule the next listening session after 5 seconds
-                handler.postDelayed(() -> startListeningForTriggerWord(), 2000);
+                startListeningForTriggerWord();
             }
-            @Override
-            public void onPartialResults(Bundle partialResults) {}
 
             @Override
-            public void onEvent(int eventType, Bundle params) {}
+            public void onPartialResults(Bundle partialResults) {
+            }
+
+            @Override
+            public void onEvent(int eventType, Bundle params) {
+            }
         };
+    }
 
-        captureListener = new RecognitionListener() {
-            @Override
-            public void onReadyForSpeech(Bundle params) {}
+    private void mute() {
+        AudioManager audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+        if (audioManager != null) {
+            audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, AudioManager.ADJUST_MUTE, 0);
+            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, AudioManager.ADJUST_MUTE, 0);
+            audioManager.setStreamVolume(AudioManager.STREAM_RING, AudioManager.ADJUST_MUTE, 0);
+            audioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_MUTE, 0);
+        }
+    }
 
-            @Override
-            public void onBeginningOfSpeech() {}
-
-            @Override
-            public void onRmsChanged(float rmsdB) {}
-
-            @Override
-            public void onBufferReceived(byte[] buffer) {}
-
-            @Override
-            public void onEndOfSpeech() {}
-
-            @Override
-            public void onError(int error) {
-                // After capture, go back to listening for the trigger word
-                handler.postDelayed(() -> startListeningForTriggerWord(), 1000);
-            }
-
-            @Override
-            public void onResults(Bundle results) {
-                ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                if (matches != null && !matches.isEmpty()) {
-                    String capturedSpeech = matches.get(0);
-                    runOnUiThread(() -> speechText.setText(capturedSpeech));
-                    // Send captured speech to AI and display response
-                    new Thread(() -> {
-                        String response = getResponse(authCode, capturedSpeech);
-                        runOnUiThread(() -> sendToGlasses(response));
-                        
-                    }).start();
-                }
-                // After processing, go back to listening for the trigger word
-                handler.postDelayed(() -> startListeningForTriggerWord(), 1000);
-            }
-
-            @Override
-            public void onPartialResults(Bundle partialResults) {}
-
-            @Override
-            public void onEvent(int eventType, Bundle params) {}
-        };
+    private void unmute() {
+        AudioManager audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+        if (audioManager != null) {
+            audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, AudioManager.ADJUST_UNMUTE, 0);
+            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, AudioManager.ADJUST_UNMUTE, 0);
+            audioManager.setStreamVolume(AudioManager.STREAM_RING, AudioManager.ADJUST_UNMUTE, 0);
+            audioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_UNMUTE, 0);
+        }
     }
     private void startListeningForTriggerWord() {
         if (!isListening) {
             return;
         }
-        Toast.makeText(MainActivity.this, "listening for trigger", Toast.LENGTH_SHORT).show();
-        // Set the trigger word listener
+        mute();
         speechRecognizer.setRecognitionListener(triggerWordListener);
         // Prepare the speech recognition intent
         Intent speechIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
@@ -276,36 +246,6 @@ public class MainActivity extends AppCompatActivity {
         speechIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
         // Start listening
         speechRecognizer.startListening(speechIntent);
-        // Schedule stopListening after 5 seconds
-        handler.postDelayed(() -> {
-            speechRecognizer.stopListening();
-        }, 2000);
-    }
-
-    private void startListeningForCapture() {
-        // Stop any ongoing listening
-        speechRecognizer.stopListening();
-        // Set the capture listener
-        speechRecognizer.setRecognitionListener(captureListener);
-        // Prepare the speech recognition intent
-        Intent captureIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-        captureIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        captureIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
-        captureIntent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
-        captureIntent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false);
-        captureIntent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500);
-        captureIntent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1000);
-        captureIntent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 3000);
-
-        runOnUiThread(() -> sendToGlasses("Listening..."));
-
-        // Add a short delay before starting to listen
-        new Handler().postDelayed(() -> {
-            // Start listening
-            speechRecognizer.startListening(captureIntent);
-            // Stop listening after 5 seconds
-            new Handler().postDelayed(() -> speechRecognizer.stopListening(), 5000);
-        }, 500); // 500 milliseconds delay
     }
 
     private void stopSpeechRecognition() {
@@ -334,7 +274,7 @@ public class MainActivity extends AppCompatActivity {
             Log.d("AUTH_CODE", "Auth code is: " + authCode);
         } catch (ApiException e) {
             Log.e("SIGN_IN_ERROR", "signInResult:failed code=" + e.getStatusCode());
-            Toast.makeText(MainActivity.this, "Sign in failed. Please try again.", Toast.LENGTH_LONG).show();
+//            Toast.makeText(MainActivity.this, "Sign in failed. Please try again.", Toast.LENGTH_LONG).show();
         }
     }
 
