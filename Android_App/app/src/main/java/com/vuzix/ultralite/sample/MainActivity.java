@@ -56,12 +56,14 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.BiPredicate;
 
 public class MainActivity extends AppCompatActivity {
     private static final int PERMISSION_REQUEST_RECORD_AUDIO = 1;
     private static final int PERMISSION_REQUEST_INTERNET = 1;
     private EditText speechText;
     private EditText notificationEditText;
+    private SpeechRecognizer speechRecognizer;
     
 
     int RC_SIGN_IN = 20;
@@ -72,11 +74,9 @@ public class MainActivity extends AppCompatActivity {
 
     String authCode = "default_code";
     String host_url = "https://ccghwd.pythonanywhere.com";
-    String trigger = "Hello";
+    String[] triggers = {"Jarvis", "Jar", "Harvest", "Service", "Nervous", "Starfish", "Carcass", "Marvelous", "Artist", "Viss", "Vis", "Largest", "Furnace", "Purpose"};
     private RecognitionListener triggerWordListener;
     private RecognitionListener captureListener;
-    private SpeechRecognizer triggerSpeechRecognizer;
-    private SpeechRecognizer captureSpeechRecognizer;
     private Handler handler = new Handler();
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -119,12 +119,11 @@ public class MainActivity extends AppCompatActivity {
         });
 
         // Initialize SpeechRecognizer
-        triggerSpeechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
-        captureSpeechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
-        
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
         initializeRecognitionListeners();
-        isListening = true;
-        startListeningForTriggerWord();
+        speechRecognizer.setRecognitionListener(triggerWordListener);
+//        isListening = true;
+//        startListeningForTriggerWord();
 
         Button speechInputButton = findViewById(R.id.speech_input_button_start);
         speechInputButton.setOnClickListener(v -> {
@@ -166,26 +165,50 @@ public class MainActivity extends AppCompatActivity {
                         runOnUiThread(() -> Toast.makeText(MainActivity.this, "Speech recognition error: " + error, Toast.LENGTH_SHORT).show());
                     }
                     // Schedule the next listening session after 5 seconds
-                    handler.postDelayed(() -> startListeningForTriggerWord(), 5000);
+                    handler.postDelayed(() -> startListeningForTriggerWord(), 2000);
                 }
             }
 
             @Override
             public void onResults(Bundle results) {
-                ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                if (matches != null && !matches.isEmpty()) {
-                    String recognizedText = matches.get(0);
-                    runOnUiThread(() -> speechText.setText(recognizedText));
-                    if (recognizedText.toLowerCase().contains(trigger.toLowerCase())) {
-                        // Stop trigger recognizer
-                        triggerSpeechRecognizer.stopListening();
-                        // Start listening for user request
-                        startListeningForCapture();
-                        return;
+
+                BiPredicate<String[], ArrayList<String>> containsTrigger = new BiPredicate<String[], ArrayList<String>>() {
+                    @Override
+                    public boolean test(String[] array, ArrayList<String> list) {
+                        if (list == null) return false;
+                        for (String trigger : array) {
+                            for (String spokenWord : list) {
+                                if (spokenWord.toLowerCase().contains(trigger.toLowerCase())) {
+                                    return true; // Return true if a match is found
+                                }
+                            }
+                        }
+                        return false; // Return false if no match is found
                     }
+                };
+
+                ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                StringBuilder sb = new StringBuilder();
+                for(String str : matches) sb.append(str).append(" ");
+                runOnUiThread(() -> speechText.setText(sb.toString()));
+
+                if (containsTrigger.test(triggers, matches)) {
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "Trigger detected", Toast.LENGTH_SHORT).show());
+//                    startListeningForCapture();
                 }
-    // Schedule the next listening session after 5 seconds
-                handler.postDelayed(() -> startListeningForTriggerWord(), 5000);
+
+//                if (matches != null && !matches.isEmpty()) {
+//                    String recognizedText = matches.get(0);
+//                    runOnUiThread(() -> speechText.setText(recognizedText));
+//                    if (recognizedText.toLowerCase().contains(trigger.toLowerCase())) {
+//                        // Start listening for 5 seconds to capture the user's request
+//                        startListeningForCapture();
+//                        return; // Do not schedule next listening session here
+//                    }
+//                }
+
+            // Schedule the next listening session after 5 seconds
+                handler.postDelayed(() -> startListeningForTriggerWord(), 2000);
             }
             @Override
             public void onPartialResults(Bundle partialResults) {}
@@ -213,7 +236,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onError(int error) {
                 // After capture, go back to listening for the trigger word
-                shandler.postDelayed(() -> startListeningForTriggerWord(), 1000);
+                handler.postDelayed(() -> startListeningForTriggerWord(), 1000);
             }
 
             @Override
@@ -239,26 +262,32 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onEvent(int eventType, Bundle params) {}
         };
-        triggerSpeechRecognizer.setRecognitionListener(triggerWordListener);
-        captureSpeechRecognizer.setRecognitionListener(captureListener);
     }
     private void startListeningForTriggerWord() {
         if (!isListening) {
             return;
         }
+        Toast.makeText(MainActivity.this, "listening for trigger", Toast.LENGTH_SHORT).show();
+        // Set the trigger word listener
+        speechRecognizer.setRecognitionListener(triggerWordListener);
+        // Prepare the speech recognition intent
         Intent speechIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         speechIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
         speechIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
-        speechIntent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
-        speechIntent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false);
-        speechIntent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500);
-        speechIntent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1000);
-        speechIntent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 3000);
-
-        triggerSpeechRecognizer.startListening(speechIntent);
+        // Start listening
+        speechRecognizer.startListening(speechIntent);
+        // Schedule stopListening after 5 seconds
+        handler.postDelayed(() -> {
+            speechRecognizer.stopListening();
+        }, 2000);
     }
 
     private void startListeningForCapture() {
+        // Stop any ongoing listening
+        speechRecognizer.stopListening();
+        // Set the capture listener
+        speechRecognizer.setRecognitionListener(captureListener);
+        // Prepare the speech recognition intent
         Intent captureIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         captureIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
         captureIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
@@ -270,18 +299,17 @@ public class MainActivity extends AppCompatActivity {
 
         runOnUiThread(() -> sendToGlasses("Listening..."));
 
-        handler.postDelayed(() -> {
-            captureSpeechRecognizer.startListening(captureIntent);
-        }, 500); // 500 milliseconds delay before starting to listen
+        // Add a short delay before starting to listen
+        new Handler().postDelayed(() -> {
+            // Start listening
+            speechRecognizer.startListening(captureIntent);
+            // Stop listening after 5 seconds
+            new Handler().postDelayed(() -> speechRecognizer.stopListening(), 5000);
+        }, 500); // 500 milliseconds delay
     }
 
     private void stopSpeechRecognition() {
-        if (triggerSpeechRecognizer != null) {
-            triggerSpeechRecognizer.stopListening();
-        }
-        if (captureSpeechRecognizer != null) {
-            captureSpeechRecognizer.stopListening();
-        }
+        speechRecognizer.stopListening();
     }
 
     private void googleSignIn() {
