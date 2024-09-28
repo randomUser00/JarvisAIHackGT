@@ -1,5 +1,5 @@
 package com.vuzix.ultralite.sample;
-
+import android.os.Handler;
 import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
@@ -63,6 +63,7 @@ public class MainActivity extends AppCompatActivity {
     private EditText speechText;
     private EditText notificationEditText;
     private SpeechRecognizer speechRecognizer;
+    
 
     int RC_SIGN_IN = 20;
 
@@ -73,7 +74,8 @@ public class MainActivity extends AppCompatActivity {
     String authCode = "default_code";
     String host_url = "https://ccghwd.pythonanywhere.com";
     String trigger = "Jarvis";
-
+    private RecognitionListener triggerWordListener;
+    private RecognitionListener captureListener;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -117,50 +119,15 @@ public class MainActivity extends AppCompatActivity {
 
         // Initialize SpeechRecognizer
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
-        speechRecognizer.setRecognitionListener(new RecognitionListener() {
-            @Override
-            public void onReadyForSpeech(Bundle params) {}
-            @Override
-            public void onBeginningOfSpeech() {}
-            @Override
-            public void onRmsChanged(float rmsdB) {}
-            @Override
-            public void onBufferReceived(byte[] buffer) {}
-            @Override
-            public void onEndOfSpeech() {}
-            @Override
-            public void onError(int error) {
-                if (isListening){
-                    startSpeechRecognition();
-                    //Toast.makeText(MainActivity.this, "Speech recognition error: " + error, Toast.LENGTH_SHORT).show();
-                } else {
-                    Toast.makeText(MainActivity.this, "Stopping Speech Recognition", Toast.LENGTH_SHORT).show();
-                }
-            }
-            @Override
-            public void onResults(Bundle results) {
-                ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                if (matches != null && !matches.isEmpty()) {
-                    String spech_text = matches.get(0); // Take the first result
-                    analyzeSpeech(spech_text);
-                    startSpeechRecognition();
-                } else {
-                    Toast.makeText(MainActivity.this, "No speech input recognized", Toast.LENGTH_SHORT).show();
-                    startSpeechRecognition();
-                }
-            }
-
-            @Override
-            public void onPartialResults(Bundle partialResults) {}
-
-            @Override
-            public void onEvent(int eventType, Bundle params) {}
-        });
+        initializeRecognitionListeners();
+        speechRecognizer.setRecognitionListener(triggerWordListener);
+        isListening = true;
+        startListeningForTriggerWord();
 
         Button speechInputButton = findViewById(R.id.speech_input_button_start);
         speechInputButton.setOnClickListener(v -> {
-            startSpeechRecognition();
             isListening = true;
+            startListeningForTriggerWord();
         });
 
 
@@ -170,6 +137,140 @@ public class MainActivity extends AppCompatActivity {
             stopSpeechRecognition();
         });
 
+    }
+    private void initializeRecognitionListeners() {
+        triggerWordListener = new RecognitionListener() {
+            @Override
+            public void onReadyForSpeech(Bundle params) {}
+
+            @Override
+            public void onBeginningOfSpeech() {}
+
+            @Override
+            public void onRmsChanged(float rmsdB) {}
+
+            @Override
+            public void onBufferReceived(byte[] buffer) {}
+
+            @Override
+            public void onEndOfSpeech() {}
+
+            @Override
+            public void onError(int error) {
+                if (isListening) {
+                    if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                        startListeningForTriggerWord();
+                    } else {
+                        runOnUiThread(() -> Toast.makeText(MainActivity.this, "Speech recognition error: " + error, Toast.LENGTH_SHORT).show());
+                        startListeningForTriggerWord();
+                    }
+                }
+            }
+
+            @Override
+            public void onResults(Bundle results) {
+                ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                if (matches != null && !matches.isEmpty()) {
+                    String recognizedText = matches.get(0);
+                    runOnUiThread(() -> speechText.setText(recognizedText));
+                    if (recognizedText.toLowerCase().contains(trigger.toLowerCase())) {
+                        // Start listening for 5 seconds to capture the user's request
+                        startListeningForCapture();
+                    } else {
+                        // Continue listening for the trigger word
+                        startListeningForTriggerWord();
+                    }
+                } else {
+                    // Continue listening for the trigger word
+                    startListeningForTriggerWord();
+                }
+            }
+
+            @Override
+            public void onPartialResults(Bundle partialResults) {}
+
+            @Override
+            public void onEvent(int eventType, Bundle params) {}
+        };
+
+        captureListener = new RecognitionListener() {
+            @Override
+            public void onReadyForSpeech(Bundle params) {}
+
+            @Override
+            public void onBeginningOfSpeech() {}
+
+            @Override
+            public void onRmsChanged(float rmsdB) {}
+
+            @Override
+            public void onBufferReceived(byte[] buffer) {}
+
+            @Override
+            public void onEndOfSpeech() {}
+
+            @Override
+            public void onError(int error) {
+                // After capture, go back to listening for the trigger word
+                startListeningForTriggerWord();
+            }
+
+            @Override
+            public void onResults(Bundle results) {
+                ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                if (matches != null && !matches.isEmpty()) {
+                    String capturedSpeech = matches.get(0);
+                    runOnUiThread(() -> speechText.setText(capturedSpeech));
+                    // Send captured speech to AI and display response
+                    new Thread(() -> {
+                        String response = getResponse(authCode, capturedSpeech);
+                        runOnUiThread(() -> sendToGlasses(response));
+                    }).start();
+                }
+                // After processing, go back to listening for the trigger word
+                startListeningForTriggerWord();
+            }
+
+            @Override
+            public void onPartialResults(Bundle partialResults) {}
+
+            @Override
+            public void onEvent(int eventType, Bundle params) {}
+        };
+    }
+    private void startListeningForTriggerWord() {
+        if (!isListening) {
+            return;
+        }
+        // Stop any ongoing listening
+        speechRecognizer.stopListening();
+        // Set the trigger word listener
+        speechRecognizer.setRecognitionListener(triggerWordListener);
+        // Prepare the speech recognition intent
+        Intent speechIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        speechIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        speechIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
+        // Start listening without a timeout
+        speechRecognizer.startListening(speechIntent);
+    }
+    private void startListeningForCapture() {
+        // Stop any ongoing listening
+        speechRecognizer.stopListening();
+        // Set the capture listener
+        speechRecognizer.setRecognitionListener(captureListener);
+        // Prepare the speech recognition intent
+        Intent captureIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        captureIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        captureIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
+        // Start listening
+        speechRecognizer.startListening(captureIntent);
+        runOnUiThread(() -> sendToGlasses("Listening..."));
+        // Stop listening after 5 seconds
+        new Handler().postDelayed(() -> speechRecognizer.stopListening(), 5000);
+    }
+
+    private void stopSpeechRecognition() {
+        speechRecognizer.stopListening();
     }
 
     private void googleSignIn() {
@@ -195,35 +296,6 @@ public class MainActivity extends AppCompatActivity {
         } catch (ApiException e) {
             Log.e("SIGN_IN_ERROR", "signInResult:failed code=" + e.getStatusCode());
             Toast.makeText(MainActivity.this, "Sign in failed. Please try again.", Toast.LENGTH_LONG).show();
-        }
-    }
-
-    private void startSpeechRecognition(){
-        AudioManager audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
-        if (audioManager != null) {
-            audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, AudioManager.ADJUST_MUTE, 0);
-            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, AudioManager.ADJUST_MUTE, 0);
-            audioManager.setStreamVolume(AudioManager.STREAM_RING, AudioManager.ADJUST_MUTE, 0);
-            audioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_MUTE, 0);
-        }
-        // Create speech recognition intent
-        Intent speechIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-        speechIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        speechIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
-        speechIntent.putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak now...");
-        // Start speech recognition
-        speechRecognizer.startListening(speechIntent);
-    }
-
-    private void stopSpeechRecognition(){
-        speechRecognizer.stopListening();
-    }
-
-    private void analyzeSpeech(String voice_input) {
-        speechText.setText(voice_input);
-        if (voice_input.toLowerCase().contains(trigger.toLowerCase())){
-            String availability = getResponse(authCode, voice_input);
-            sendToGlasses(availability);
         }
     }
 
