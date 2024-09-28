@@ -13,12 +13,17 @@
 
 
         <ImageView
-            android:layout_width="137dp"
-            android:layout_height="148dp"
+            android:layout_width="172dp"
+            android:layout_height="194dp"
             android:layout_marginBottom="20dp"
             android:adjustViewBounds="true"
             android:scaleType="centerCrop"
             android:src="@drawable/ai_face" />
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="20dp">
 
         <!-- Speech Input Button -->
         <Button
@@ -32,6 +37,19 @@
             android:text="Talk to me"
             android:textAllCaps="false"
             android:textColor="#FFFFFF" />
+
+        <!-- Shine Effect View -->
+        <View
+            android:id="@+id/shine"
+            android:layout_width="30dp"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentTop="true"
+            android:layout_alignParentBottom="true"
+            android:rotation="20"
+            android:background="@drawable/bg_shine" />
+    </RelativeLayout>
 
         <!-- Linked Check -->
         <LinearLayout
