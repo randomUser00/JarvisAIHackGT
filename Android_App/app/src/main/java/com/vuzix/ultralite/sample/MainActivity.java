@@ -72,7 +72,7 @@ public class MainActivity extends AppCompatActivity {
 
     String authCode = "default_code";
     String host_url = "https://ccghwd.pythonanywhere.com";
-    String trigger = "Jarvis";
+    String trigger = "Hello";
     private RecognitionListener triggerWordListener;
     private RecognitionListener captureListener;
     private SpeechRecognizer triggerSpeechRecognizer;
@@ -213,7 +213,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onError(int error) {
                 // After capture, go back to listening for the trigger word
-                startListeningForTriggerWord();
+                shandler.postDelayed(() -> startListeningForTriggerWord(), 1000);
             }
 
             @Override
@@ -225,17 +225,12 @@ public class MainActivity extends AppCompatActivity {
                     // Send captured speech to AI and display response
                     new Thread(() -> {
                         String response = getResponse(authCode, capturedSpeech);
-                        // Add a slight delay before displaying the AI response
-                        try {
-                            Thread.sleep(500); // 500 milliseconds delay
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
                         runOnUiThread(() -> sendToGlasses(response));
+                        
                     }).start();
                 }
                 // After processing, go back to listening for the trigger word
-                startListeningForTriggerWord();
+                handler.postDelayed(() -> startListeningForTriggerWord(), 1000);
             }
 
             @Override
@@ -250,33 +245,34 @@ public class MainActivity extends AppCompatActivity {
     private void startListeningForTriggerWord() {
         if (!isListening) {
             return;
-        }    
-        // Prepare the speech recognition intent
+        }
         Intent speechIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         speechIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
         speechIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
-        // Start listening
+        speechIntent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+        speechIntent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false);
+        speechIntent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500);
+        speechIntent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1000);
+        speechIntent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 3000);
+
         triggerSpeechRecognizer.startListening(speechIntent);
-        // Schedule stopListening after 5 seconds
-        handler.postDelayed(() -> {
-            triggerSpeechRecognizer.stopListening();
-        }, 5000);
     }
 
     private void startListeningForCapture() {
-        // Prepare the speech recognition intent
         Intent captureIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         captureIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
         captureIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
-        // Send "Listening..." message to the glasses
+        captureIntent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+        captureIntent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false);
+        captureIntent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500);
+        captureIntent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1000);
+        captureIntent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 3000);
+
         runOnUiThread(() -> sendToGlasses("Listening..."));
-        // Add a short delay before starting to listen
-        new Handler().postDelayed(() -> {
-            // Start listening
+
+        handler.postDelayed(() -> {
             captureSpeechRecognizer.startListening(captureIntent);
-            // Stop listening after 5 seconds
-            new Handler().postDelayed(() -> captureSpeechRecognizer.stopListening(), 5000);
-        }, 500); // 500 milliseconds delay
+        }, 500); // 500 milliseconds delay before starting to listen
     }
 
     private void stopSpeechRecognition() {
@@ -315,10 +311,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private String getResponse(String authCode, String voiceInput) {
-        if (authCode == null || authCode.equals("default_code")) {
-            runOnUiThread(() -> googleSignIn());
-            return "Please sign in to continue.";
-        }
         ExecutorService executor = Executors.newSingleThreadExecutor();
         Future<String> future = executor.submit(() -> {
             try {
