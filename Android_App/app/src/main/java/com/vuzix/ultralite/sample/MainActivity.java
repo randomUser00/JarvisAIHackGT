@@ -92,7 +92,7 @@ public class MainActivity extends AppCompatActivity {
                 .build();
 
         mGoogleSignInClient = GoogleSignIn.getClient(this, gso);
-        googleSignIn();
+//        googleSignIn();
 //        gAuth.setOnClickListener(new View.OnClickListener() {
 //            @Override
 //            public void onClick(View v) {
@@ -190,29 +190,32 @@ public class MainActivity extends AppCompatActivity {
                 ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
                 StringBuilder sb = new StringBuilder();
                 for (String str : matches) sb.append(str).append(" ");
-                runOnUiThread(() -> speechText.setText(sb));
                 if (isProcessing) {
                     mute();
                 } else if (isPrompt) {
                     String promptText = sb.toString();
                     unmute();
-                    runOnUiThread(() -> notificationEditText.setText("PROMPT: " + sb));
+                    runOnUiThread(() -> speechText.setText(sb));
+                    runOnUiThread(() -> notificationEditText.setText("Processing..."));
                     isPrompt = false;
                     isProcessing = true;
-                    // todo:
+                    // todo
                     handler.postDelayed(() -> {
-                        sendToGlasses("Hello");
+                        sendToGlasses(promptText);
                         isProcessing = false;
+                        mute();
                         startListeningForTriggerWord();
                     }, 4000);
 
                 } else if (containsTrigger.test(triggers, matches)) {
                     // Trigger word detected
+                    runOnUiThread(() -> speechText.setText(""));
                     unmute();
                     runOnUiThread(() -> notificationEditText.setText("Listening..."));
                     isPrompt = true;
                 }
                 else {
+                    runOnUiThread(() -> speechText.setText(""));
                     mute();
                 }
                 startListeningForTriggerWord();
