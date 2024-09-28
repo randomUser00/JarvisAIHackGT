@@ -227,7 +227,7 @@ public class MainActivity extends AppCompatActivity {
                     isPrompt = false;
                     isProcessing = true;
                     // todo:
-                    if (promptText.contains("define path to")) {
+                    if (promptText.toLowerCase().contains("define path to")) {
                         promptForDestination(promptText);
                     } else {
                         handler.postDelayed(() -> {
@@ -391,10 +391,12 @@ public class MainActivity extends AppCompatActivity {
         int index = lowerPrompt.indexOf(keyword);
         String destination = "";
         if (index != -1) {
+            // Use the original prompt for accurate casing
             destination = prompt.substring(index + keyword.length()).trim();
         }
         final String finalDestination = destination;
         runOnUiThread(() -> {
+            Log.d("Destination", "Extracted destination: " + finalDestination);
             if (!finalDestination.isEmpty()) {
                 startNavigation(finalDestination);
             } else {
@@ -405,6 +407,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
+
     private void startNavigation(String destination) {
         if (destination == null || destination.isEmpty()) {
             Toast.makeText(this, "Destination is empty.", Toast.LENGTH_SHORT).show();
@@ -413,14 +416,14 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         try {
-            String encodedDestination = URLEncoder.encode(destination, "UTF-8");
-            Uri gmmIntentUri = Uri.parse("google.navigation:q=" + encodedDestination);
+            Uri gmmIntentUri = Uri.parse("google.navigation:q=" + Uri.encode(destination));
+            Log.d("Navigation", "URI: " + gmmIntentUri.toString());
             Intent mapIntent = new Intent(Intent.ACTION_VIEW, gmmIntentUri);
             mapIntent.setPackage("com.google.android.apps.maps");
             if (mapIntent.resolveActivity(getPackageManager()) != null) {
                 startActivity(mapIntent);
                 isProcessing = false;
-                // Optionally, decide whether to start listening again
+                // Decide whether to start listening again or not
             } else {
                 Toast.makeText(this, "Google Maps is not installed. Redirecting to Play Store.", Toast.LENGTH_LONG).show();
                 try {
@@ -431,7 +434,7 @@ public class MainActivity extends AppCompatActivity {
                 isProcessing = false;
                 startListeningForTriggerWord();
             }
-        } catch (UnsupportedEncodingException e) {
+        } catch (Exception e) {
             e.printStackTrace();
             Toast.makeText(this, "Error starting navigation.", Toast.LENGTH_SHORT).show();
             isProcessing = false;
