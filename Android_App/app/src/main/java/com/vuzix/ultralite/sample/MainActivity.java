@@ -221,6 +221,12 @@ public class MainActivity extends AppCompatActivity {
                     // Send captured speech to AI and display response
                     new Thread(() -> {
                         String response = getResponse(authCode, capturedSpeech);
+                        // Add a slight delay before displaying the AI response
+                        try {
+                            Thread.sleep(500); // 500 milliseconds delay
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
                         runOnUiThread(() -> sendToGlasses(response));
                     }).start();
                 }
@@ -262,11 +268,15 @@ public class MainActivity extends AppCompatActivity {
         Intent captureIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         captureIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
         captureIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
-        // Start listening
-        speechRecognizer.startListening(captureIntent);
+        // Send "Listening..." message to the glasses
         runOnUiThread(() -> sendToGlasses("Listening..."));
-        // Stop listening after 5 seconds
-        new Handler().postDelayed(() -> speechRecognizer.stopListening(), 5000);
+        // Add a short delay before starting to listen
+        new Handler().postDelayed(() -> {
+            // Start listening
+            speechRecognizer.startListening(captureIntent);
+            // Stop listening after 5 seconds
+            new Handler().postDelayed(() -> speechRecognizer.stopListening(), 5000);
+        }, 500); // 500 milliseconds delay
     }
 
     private void stopSpeechRecognition() {
