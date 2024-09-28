@@ -73,7 +73,7 @@ public class MainActivity extends AppCompatActivity {
 
     String authCode = "default_code";
     String host_url = "https://ccghwd.pythonanywhere.com";
-    String trigger = "Jarvis";
+    String trigger = "Hi";
     private RecognitionListener triggerWordListener;
     private RecognitionListener captureListener;
 
