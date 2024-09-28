@@ -76,7 +76,7 @@ public class MainActivity extends AppCompatActivity {
     String trigger = "Jarvis";
     private RecognitionListener triggerWordListener;
     private RecognitionListener captureListener;
-
+    private Handler handler = new Handler();
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -159,11 +159,12 @@ public class MainActivity extends AppCompatActivity {
             public void onError(int error) {
                 if (isListening) {
                     if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
-                        startListeningForTriggerWord();
+                        // Do nothing, we already stopped listening after 5 seconds
                     } else {
                         runOnUiThread(() -> Toast.makeText(MainActivity.this, "Speech recognition error: " + error, Toast.LENGTH_SHORT).show());
-                        startListeningForTriggerWord();
                     }
+                    // Schedule the next listening session after 5 seconds
+                    handler.postDelayed(() -> startListeningForTriggerWord(), 5000);
                 }
             }
 
@@ -176,16 +177,12 @@ public class MainActivity extends AppCompatActivity {
                     if (recognizedText.toLowerCase().contains(trigger.toLowerCase())) {
                         // Start listening for 5 seconds to capture the user's request
                         startListeningForCapture();
-                    } else {
-                        // Continue listening for the trigger word
-                        startListeningForTriggerWord();
+                        return; // Do not schedule next listening session here
                     }
-                } else {
-                    // Continue listening for the trigger word
-                    startListeningForTriggerWord();
                 }
+            // Schedule the next listening session after 5 seconds
+                handler.postDelayed(() -> startListeningForTriggerWord(), 5000);
             }
-
             @Override
             public void onPartialResults(Bundle partialResults) {}
 
@@ -242,17 +239,20 @@ public class MainActivity extends AppCompatActivity {
         if (!isListening) {
             return;
         }
-        // Stop any ongoing listening
-        speechRecognizer.stopListening();
         // Set the trigger word listener
         speechRecognizer.setRecognitionListener(triggerWordListener);
         // Prepare the speech recognition intent
         Intent speechIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         speechIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
         speechIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
-        // Start listening without a timeout
+        // Start listening
         speechRecognizer.startListening(speechIntent);
+        // Schedule stopListening after 5 seconds
+        handler.postDelayed(() -> {
+            speechRecognizer.stopListening();
+        }, 5000);
     }
+
     private void startListeningForCapture() {
         // Stop any ongoing listening
         speechRecognizer.stopListening();
