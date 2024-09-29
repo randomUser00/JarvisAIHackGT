@@ -1,5 +1,6 @@
 package com.vuzix.ultralite.sample;
 import android.os.Handler;
+import android.net.Uri;
 import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
@@ -60,11 +61,11 @@ import java.util.function.BiPredicate;
 
 public class MainActivity extends AppCompatActivity {
     private static final int PERMISSION_REQUEST_RECORD_AUDIO = 1;
-    private static final int PERMISSION_REQUEST_INTERNET = 1;
+    private static final int PERMISSION_REQUEST_INTERNET = 2;
     private EditText speechText;
     private EditText notificationEditText;
     private SpeechRecognizer speechRecognizer;
-    
+
 
     int RC_SIGN_IN = 20;
 
@@ -79,6 +80,7 @@ public class MainActivity extends AppCompatActivity {
     String[] triggers = {"Jarvis", "Artist", "Largest", "Tardis"};
     private RecognitionListener triggerWordListener;
     private Handler handler = new Handler();
+    private static final int PERMISSION_REQUEST_LOCATION = 3;
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -104,6 +106,9 @@ public class MainActivity extends AppCompatActivity {
         }
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.INTERNET) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.INTERNET}, PERMISSION_REQUEST_INTERNET);
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSION_REQUEST_LOCATION);
         }
 
 
@@ -139,6 +144,29 @@ public class MainActivity extends AppCompatActivity {
 //            stopSpeechRecognition();
 //        });
 
+    }
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == PERMISSION_REQUEST_RECORD_AUDIO) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Audio recording permission granted
+            } else {
+                Toast.makeText(this, "Audio recording permission is required.", Toast.LENGTH_SHORT).show();
+            }
+        } else if (requestCode == PERMISSION_REQUEST_INTERNET) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Internet permission granted
+            } else {
+                Toast.makeText(this, "Internet permission is required.", Toast.LENGTH_SHORT).show();
+            }
+        } else if (requestCode == PERMISSION_REQUEST_LOCATION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Location permission granted
+            } else {
+                Toast.makeText(this, "Location permission is required for navigation.", Toast.LENGTH_SHORT).show();
+            }
+        }
     }
     private void initializeRecognitionListeners() {
         triggerWordListener = new RecognitionListener() {
@@ -199,13 +227,21 @@ public class MainActivity extends AppCompatActivity {
                     runOnUiThread(() -> notificationEditText.setText("Processing..."));
                     isPrompt = false;
                     isProcessing = true;
-                    // todo
-                    handler.postDelayed(() -> {
-                        sendToGlasses(promptText);
+                    // todo:
+                    if (promptText.toLowerCase().contains("define path to")) {
+                        promptForDestination(promptText);
+                    } else {
+                       // handler.postDelayed(() -> {
+                          //  sendToGlasses("Hello");
+                            //isProcessing = false;
+                            //startListeningForTriggerWord();
+                       // }, 4000);
+                        String response = getResponse(authCode, promptText);
+                        sendToGlasses(response);
                         isProcessing = false;
                         mute();
                         startListeningForTriggerWord();
-                    }, 4000);
+                    }
 
                 } else if (containsTrigger.test(triggers, matches)) {
                     // Trigger word detected
@@ -357,8 +393,60 @@ public class MainActivity extends AppCompatActivity {
                 context.getResources(), resource, context.getTheme());
         return drawable.getBitmap();
     }
+    public void promptForDestination(String prompt) {
+        String keyword = "define path to";
+        String lowerPrompt = prompt.toLowerCase();
+        int index = lowerPrompt.indexOf(keyword);
+        String destination = "";
+        if (index != -1) {
+            // Use the original prompt for accurate casing
+            destination = prompt.substring(index + keyword.length()).trim();
+        }
+        final String finalDestination = destination;
+        runOnUiThread(() -> {
+            Log.d("Destination", "Extracted destination: " + finalDestination);
+            if (!finalDestination.isEmpty()) {
+                startNavigation(finalDestination);
+            } else {
+                notificationEditText.setText("No destination recognized.");
+                Toast.makeText(this, "Please specify a destination.", Toast.LENGTH_SHORT).show();
+                isProcessing = false;
+                startListeningForTriggerWord();
+            }
+        });
+    }
 
+    private void startNavigation(String destination) {
+        if (destination == null || destination.isEmpty()) {
+            Toast.makeText(this, "Destination is empty.", Toast.LENGTH_SHORT).show();
+            isProcessing = false;
+            startListeningForTriggerWord();
+            return;
+        }
+        try {
+            Uri gmmIntentUri = Uri.parse("google.navigation:q=" + Uri.encode(destination));
+            Log.d("Navigation", "URI: " + gmmIntentUri.toString());
+            Intent mapIntent = new Intent(Intent.ACTION_VIEW, gmmIntentUri);
+            mapIntent.setPackage("com.google.android.apps.maps");
+            if (mapIntent.resolveActivity(getPackageManager()) != null) {
+                startActivity(mapIntent);
+                isProcessing = false;
+                // Decide whether to start listening again or not
+            } else {
+                Toast.makeText(this, "Google Maps is not installed. Redirecting to Play Store.", Toast.LENGTH_LONG).show();
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.google.android.apps.maps")));
+                } catch (android.content.ActivityNotFoundException anfe) {
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.apps.maps")));
+                }
+                isProcessing = false;
+                startListeningForTriggerWord();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            Toast.makeText(this, "Error starting navigation.", Toast.LENGTH_SHORT).show();
+            isProcessing = false;
+            startListeningForTriggerWord();
+        }
+    }
 }
-
-
-
