@@ -48,8 +48,8 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions {
         jvmTarget = "1.8"
@@ -77,4 +77,5 @@ dependencies {
     implementation("com.google.android.gms:play-services-auth:21.0.0")
     implementation("androidx.activity:activity:1.8.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+    implementation("io.github.stefanbratanov:jvm-openai:0.11.0")
 }

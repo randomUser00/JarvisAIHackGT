@@ -12,10 +12,7 @@ import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.util.Log;
-import android.view.View;
-import android.widget.Button;
 import android.widget.EditText;
-import android.widget.ImageView;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
@@ -36,27 +33,25 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.vuzix.ultralite.LVGLImage;
 import com.vuzix.ultralite.UltraliteSDK;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
-
 import java.io.BufferedReader;
-import java.io.DataOutputStream;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Locale;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.BiPredicate;
+
+import io.github.stefanbratanov.jvm.openai.ChatClient;
+import io.github.stefanbratanov.jvm.openai.ChatCompletion;
+import io.github.stefanbratanov.jvm.openai.ChatMessage;
+import io.github.stefanbratanov.jvm.openai.CreateChatCompletionRequest;
+import io.github.stefanbratanov.jvm.openai.OpenAI;
+import io.github.stefanbratanov.jvm.openai.OpenAIModel;
 
 public class MainActivity extends AppCompatActivity {
     private static final int PERMISSION_REQUEST_RECORD_AUDIO = 1;
@@ -235,7 +230,7 @@ public class MainActivity extends AppCompatActivity {
                             //isProcessing = false;
                             //startListeningForTriggerWord();
                        // }, 4000);
-                        response = getResponse(authCode, promptText);
+                        String response = gptResponse(promptText);
                         sendToGlasses(response);
                         isProcessing = false;
                         startListeningForTriggerWord();
@@ -368,6 +363,18 @@ public class MainActivity extends AppCompatActivity {
         } finally {
             executor.shutdown();
         }
+    }
+
+    private String gptResponse(String voiceInput) {
+        OpenAI openAI = OpenAI.newBuilder(System.getenv("OPENAI_API_KEY")).build();
+
+        ChatClient chatClient = openAI.chatClient();
+        CreateChatCompletionRequest createChatCompletionRequest = CreateChatCompletionRequest.newBuilder()
+                .model(OpenAIModel.GPT_3_5_TURBO)
+                .message(ChatMessage.userMessage(voiceInput))
+                .build();
+        ChatCompletion chatCompletion = chatClient.createChatCompletion(createChatCompletionRequest);
+        return chatCompletion.choices().toString();
     }
 
 
