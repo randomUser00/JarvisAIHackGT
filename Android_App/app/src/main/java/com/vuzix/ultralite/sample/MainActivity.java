@@ -15,6 +15,10 @@ import android.util.Log;
 import android.widget.EditText;
 import android.widget.Toast;
 import android.net.Uri;
+import com.google.ai.client.generativeai.GenerativeModel;
+import com.google.ai.client.generativeai.java.GenerativeModelFutures;
+import com.google.ai.client.generativeai.type.Content;
+import com.google.ai.client.generativeai.type.GenerateContentResponse;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
@@ -30,6 +34,9 @@ import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.common.api.Scope;
 import com.google.android.gms.tasks.Task;
 import com.google.api.services.calendar.CalendarScopes;
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.firebase.auth.FirebaseAuth;
 import com.vuzix.ultralite.LVGLImage;
 import com.vuzix.ultralite.UltraliteSDK;
@@ -42,17 +49,11 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Locale;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.BiPredicate;
-
-import io.github.stefanbratanov.jvm.openai.ChatClient;
-import io.github.stefanbratanov.jvm.openai.ChatCompletion;
-import io.github.stefanbratanov.jvm.openai.ChatMessage;
-import io.github.stefanbratanov.jvm.openai.CreateChatCompletionRequest;
-import io.github.stefanbratanov.jvm.openai.OpenAI;
-import io.github.stefanbratanov.jvm.openai.OpenAIModel;
 
 public class MainActivity extends AppCompatActivity {
     private static final int PERMISSION_REQUEST_RECORD_AUDIO = 1;
@@ -367,15 +368,39 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private String gptResponse(String voiceInput) {
-        OpenAI openAI = OpenAI.newBuilder(System.getenv("OPENAI_API_KEY")).build();
+        String test_key = "";
+        // Specify a Gemini model appropriate for your use case
+        GenerativeModel gm =
+                new GenerativeModel(
+                        /* modelName */ "gemini-1.5-flash",
+                        // Access your API key as a Build Configuration variable (see "Set up your API key"
+                        // above)
+                        /* apiKey */ test_key);
+        GenerativeModelFutures model = GenerativeModelFutures.from(gm);
 
-        ChatClient chatClient = openAI.chatClient();
-        CreateChatCompletionRequest createChatCompletionRequest = CreateChatCompletionRequest.newBuilder()
-                .model(OpenAIModel.GPT_3_5_TURBO)
-                .message(ChatMessage.userMessage(voiceInput))
-                .build();
-        ChatCompletion chatCompletion = chatClient.createChatCompletion(createChatCompletionRequest);
-        return chatCompletion.choices().toString();
+        Content content =
+                new Content.Builder().addText("Write a story about a magic backpack.").build();
+
+// For illustrative purposes only. You should use an executor that fits your needs.
+        Executor executor = Executors.newSingleThreadExecutor();
+
+        ListenableFuture<GenerateContentResponse> response = model.generateContent(content);
+        Futures.addCallback(
+                response,
+                new FutureCallback<GenerateContentResponse>() {
+                    @Override
+                    public void onSuccess(GenerateContentResponse result) {
+                        String resultText = result.getText();
+                        System.out.println(resultText);
+                    }
+
+                    @Override
+                    public void onFailure(Throwable t) {
+                        t.printStackTrace();
+                    }
+                },
+                executor);
+        return response.toString();
     }
 
 

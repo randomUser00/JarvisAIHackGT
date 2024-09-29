@@ -77,5 +77,5 @@ dependencies {
     implementation("com.google.android.gms:play-services-auth:21.0.0")
     implementation("androidx.activity:activity:1.8.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
-    implementation("io.github.stefanbratanov:jvm-openai:0.11.0")
+    implementation("com.google.ai.client.generativeai:generativeai:0.7.0")
 }
