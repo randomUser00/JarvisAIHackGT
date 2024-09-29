@@ -230,11 +230,15 @@ public class MainActivity extends AppCompatActivity {
                     if (promptText.toLowerCase().contains("define path to")) {
                         promptForDestination(promptText);
                     } else {
-                        handler.postDelayed(() -> {
-                            sendToGlasses("Hello");
-                            isProcessing = false;
-                            startListeningForTriggerWord();
-                        }, 4000);
+                       // handler.postDelayed(() -> {
+                          //  sendToGlasses("Hello");
+                            //isProcessing = false;
+                            //startListeningForTriggerWord();
+                       // }, 4000);
+                        response = getResponse(authCode, promptText);
+                        sendToGlasses(response);
+                        isProcessing = false;
+                        startListeningForTriggerWord();
                     }
 
                 } else if (containsTrigger.test(triggers, matches)) {
